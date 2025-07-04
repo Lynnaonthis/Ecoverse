@@ -1,0 +1,211 @@
+{
+  "name": "supabase-eco-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.7",
+    "dotenv": "^16.3.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-scripts": "^5.0.1"
+  }
+}
+import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import { supabase } from './supabaseClient';
+
+export async function fetchAllMissions() {
+  const { data, error } = await supabase
+    .from('missions')
+    .select('*');
+  if (error) throw error;
+  return data;
+}
+import { supabase } from './supabaseClient';
+
+export async function logUserProgress(userId) {
+  const { data, error } = await supabase
+    .from('impact_stats')
+    .select('*')
+    .eq('user_id', userId);
+  if (error) throw error;
+  return data;
+}
+import React from 'react';
+
+export default function BadgesEcoCredits({ badges = [], ecoCredits = 0 }) {
+  return (
+    <div className="badges-eco-credits">
+      <h2>Earned Badges</h2>
+      <ul>
+        {badges.length === 0 ? (
+          <li>No badges earned yet.</li>
+        ) : (
+          badges.map((badge, idx) => <li key={idx}>{badge}</li>)
+        )}
+      </ul>
+      <h2>EcoCredits</h2>
+      <p>{ecoCredits}</p>
+    </div>
+  );
+}
+import React from 'react';
+
+export default function Dashboard({ carbonOffset = 0, landRestored = 0, speciesProtected = 0 }) {
+  return (
+    <div className="dashboard">
+      <h2>Impact Dashboard</h2>
+      <div>Carbon Offset: {carbonOffset} tons</div>
+      <div>Land Restored: {landRestored} hectares</div>
+      <div>Species Protected: {speciesProtected}</div>
+    </div>
+  );
+}
+import React, { useEffect, useState } from 'react';
+import { supabase } from './supabaseClient';
+
+export default function SpeciesCarousel() {
+  const [species, setSpecies] = useState([]);
+  const [current, setCurrent] = useState(0);
+
+  useEffect(() => {
+    async function fetchSpecies() {
+      const { data, error } = await supabase.from('species').select('*');
+      if (!error) setSpecies(data || []);
+    }
+    fetchSpecies();
+  }, []);
+
+  function next() {
+    setCurrent((prev) => (prev + 1) % species.length);
+  }
+  function prev() {
+    setCurrent((prev) => (prev - 1 + species.length) % species.length);
+  }
+
+  if (species.length === 0) return <div>Loading species...</div>;
+
+  const currentSpecies = species[current];
+
+  return (
+    <div className="species-carousel">
+      <button onClick={prev}>Prev</button>
+      <div>
+        <h3>{currentSpecies.name}</h3>
+        <p>{currentSpecies.description}</p>
+        {currentSpecies.image_url && <img src={currentSpecies.image_url} alt={currentSpecies.name} style={{maxWidth:200}} />}
+      </div>
+      <button onClick={next}>Next</button>
+    </div>
+  );
+}
+import React, { useState } from 'react';
+import BadgesEcoCredits from './BadgesEcoCredits';
+import Dashboard from './Dashboard';
+import SpeciesCarousel from './SpeciesCarousel';
+
+function Missions() {
+  return <div><h2>Missions</h2>{/* Missions list here */}</div>;
+}
+function Impact() {
+  return <Dashboard carbonOffset={10} landRestored={5} speciesProtected={3} />;
+}
+function Profile() {
+  return <BadgesEcoCredits badges={["Tree Planter", "Wildlife Protector"]} ecoCredits={120} />;
+}
+function Home() {
+  return <SpeciesCarousel />;
+}
+
+const NAV = ["Home", "Missions", "Impact", "Profile"];
+
+export default function App() {
+  const [page, setPage] = useState("Home");
+  let content;
+  if (page === "Home") content = <Home />;
+  else if (page === "Missions") content = <Missions />;
+  else if (page === "Impact") content = <Impact />;
+  else if (page === "Profile") content = <Profile />;
+
+  return (
+    <div>
+      <nav>
+        {NAV.map((nav) => (
+          <button key={nav} onClick={() => setPage(nav)} disabled={page === nav}>{nav}</button>
+        ))}
+      </nav>
+      <div>{content}</div>
+    </div>
+  );
+}
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import App from './App';
+
+const container = document.getElementById('root');
+const root = createRoot(container);
+root.render(<App />);
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Supabase Eco Dashboard</title>
+</head>
+<body>
+  <div id="root"></div>
+</body>
+</html>
+import React, { useEffect, useState } from 'react';
+import { fetchAllMissions } from './missions';
+
+function Missions() {
+  const [missions, setMissions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetchAllMissions()
+      .then(data => {
+        setMissions(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        setError(err.message || 'Error fetching missions');
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) return <div>Loading missions...</div>;
+  if (error) return <div>Error: {error}</div>;
+
+  return (
+    <div>
+      <h2>Missions</h2>
+      <ul>
+        {missions.length === 0 ? (
+          <li>No missions found.</li>
+        ) : (
+          missions.map(mission => (
+            <li key={mission.id}>
+              <strong>{mission.name}</strong>: {mission.description}
+            </li>
+          ))
+        )}
+      </ul>
+    </div>
+  );
+}
